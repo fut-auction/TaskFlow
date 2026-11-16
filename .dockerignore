@@ -8,3 +8,6 @@ playwright-report
 coverage
 test-results
 *.md
+# Keep isolated test identities and storage fixtures out of image builds.
+tests
+server/*.test.mjs

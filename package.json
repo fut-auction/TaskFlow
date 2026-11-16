@@ -14,13 +14,18 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "preview": "vite preview --host 127.0.0.1"
+    "preview": "vite preview --host 127.0.0.1",
+    "test:cloud": "node --test tests/cloud.integration.mjs"
   },
   "dependencies": {
     "express": "^4.21.2",
+    "firebase": "^13.3.0",
+    "firebase-admin": "^14.5.1",
     "lucide-react": "^0.468.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "zod": "4.6.7"
   },
   "devDependencies": {
@@ -42,6 +47,9 @@
     "vitest": "^2.1.8"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
+  },
+  "overrides": {
+    "@grpc/grpc-js": "^1.13.6"
   }
 }

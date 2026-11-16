@@ -1,0 +1,7 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // TaskFlow uses the authenticated Express API, never direct browser access.
+    match /taskflowUsers/{document=**} { allow read, write: if false; }
+  }
+}

@@ -8,3 +8,7 @@ playwright-report/
 test-results/
 .DS_Store
 *.tsbuildinfo
+
+# Local Firebase emulator logs
+*-debug.log
+.firebase/

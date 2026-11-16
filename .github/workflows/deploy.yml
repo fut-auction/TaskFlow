@@ -40,11 +40,16 @@ jobs:
           service: taskflow
           region: ${{ vars.GCP_REGION }}
           image: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/taskflow/taskflow:${{ github.sha }}
+          env_vars: |
+            OPENROUTER_MODEL=openai/gpt-4o-mini
+            FIREBASE_PROJECT_ID=${{ vars.FIREBASE_PROJECT_ID }}
+            FIREBASE_WEB_API_KEY=${{ vars.FIREBASE_WEB_API_KEY }}
+            FIREBASE_AUTH_DOMAIN=${{ vars.FIREBASE_AUTH_DOMAIN }}
+            FIREBASE_APP_ID=${{ vars.FIREBASE_APP_ID }}
           flags: >-
             --allow-unauthenticated
             --service-account=${{ vars.GCP_RUNTIME_SERVICE_ACCOUNT }}
             --set-secrets=OPENROUTER_API_KEY=taskflow-openrouter-key:1
-            --set-env-vars=OPENROUTER_MODEL=openai/gpt-4o-mini
       - name: Verify live health endpoint
         run: |
           curl --fail --silent --show-error "${{ steps.deploy.outputs.url }}/healthz"
