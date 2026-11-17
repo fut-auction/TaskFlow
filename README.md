@@ -71,7 +71,45 @@ npm run dev:server
 
 Vite forwards `/api` to port 8080. You can set `TASKFLOW_API_TARGET` in Vite's process environment to use another local backend URL. The API key stays on the server. If the backend/key is unavailable, Copilot shows an error; the task interface continues to work.
 
-Guest AI uses `/api/guest/agent/step` and the browser's current task snapshot. That endpoint is restricted to loopback connections/local hostnames and is disabled when `NODE_ENV=production`. It never reads or writes a cloud user's data. Cloud AI continues to require sign-in.
+Guest AI uses `/api/guest/agent/step` and the browser's current task snapshot. It works locally by default and supports explicit public production access as described below. It never reads or writes a cloud user's data. Cloud-account APIs continue to require sign-in.
+
+### Public production AI without Firebase
+
+Public guest AI requires explicit runtime configuration on the **taskflow** Cloud Run service. No Firebase configuration or login is needed:
+
+```dotenv
+GUEST_AI_ENABLED=true
+PUBLIC_APP_URL=https://YOUR_ACTUAL_TASKFLOW_SITE_ORIGIN
+OPENROUTER_MODEL=openai/gpt-4o-mini
+```
+
+Keep `OPENROUTER_API_KEY` supplied to the backend through the existing TaskFlow Secret Manager binding. Never put it in frontend variables or source code. Use a dedicated TaskFlow OpenRouter key with a credit/spending limit. These settings are instructions only; no Cloud Run resource has been changed by this implementation.
+
+Use the real HTTPS site origin (scheme plus hostname and optional port). Add any extra trusted site origins in `GUEST_AI_ALLOWED_ORIGINS`, separated by commas. Invalid configuration fails closed for guest AI while the task interface still opens. `GUEST_AI_ENABLED=false` disables guest AI, including locally. Production access defaults to disabled when the flag is absent. HTTP origins are allowed only for localhost production tests.
+
+Production requests must include an allowed Origin, and cross-site browser requests are rejected. This reduces browser-based misuse; an Origin header is **not authentication**, and a script can forge it. Cloud task/chat/delete routes and authenticated cloud AI retain their token checks.
+
+Default guest AI safeguards:
+
+| Setting                                 | Default | Meaning                                                                          |
+| --------------------------------------- | ------- | -------------------------------------------------------------------------------- |
+| `GUEST_AI_REQUESTS_PER_MINUTE`          | 20      | Requests per network-client bucket, per instance                                 |
+| `GUEST_AI_INSTANCE_REQUESTS_PER_MINUTE` | 60      | All guest AI admissions per instance/minute                                      |
+| `GUEST_AI_INSTANCE_REQUESTS_PER_HOUR`   | 120     | All guest AI admissions per instance/hour                                        |
+| `GUEST_AI_INSTANCE_REQUESTS_PER_DAY`    | 300     | All guest AI admissions per instance/day                                         |
+| `GUEST_AI_MAX_CONCURRENT`               | 2       | Active guest provider requests per instance; each client bucket gets at most one |
+| `GUEST_AI_MAX_INPUT_BYTES`              | 96000   | Validated chat and task JSON bytes per request                                   |
+| `GUEST_AI_MAX_OUTPUT_TOKENS`            | 1000    | Server-selected output cap; configurable from 128 to 1000                        |
+| `GUEST_AI_TIMEOUT_MS`                   | 30000   | Provider request/stream timeout; configurable from 1000 to 45000 ms              |
+| `GUEST_AI_TRUST_PROXY_HOPS`             | 0       | Number of explicitly trusted forwarding hops for client buckets                  |
+
+Raw HTTP request bodies are capped at 128 KB. Requests allow at most 60 messages, 12000 characters per message content, and 250 validated tasks. Provider streams are capped at 256000 bytes. Clients cannot override the server's model, token cap, provider URL, system prompt, or tool definitions. The existing browser action loop stops after six model steps; each step counts as an API request. Tools and approval dialogs remain unchanged.
+
+Quota exhaustion returns HTTP 429 with `Retry-After`, without calling OpenRouter. Invalid or oversized requests return 400/413. Full concurrency returns 429 without queueing more paid work. Provider errors consume their admitted request budget; there are no automatic backend retries. Timeouts, disconnects, and oversized streams request upstream cancellation and free the local permit. Providers may still charge for already-processed work.
+
+**These are in-memory, per-instance fixed-window limits, not global quotas or a dollar budget.** They reset on process restart, multiply across instances, and can be exhausted by anonymous traffic. Input byte limits are not exact token counts. Configure the dedicated OpenRouter key's credit/spending cap and daily or monthly reset in OpenRouter before enabling public access. That provider-side key budget applies across requests using that key; monitor usage and tune the service limits to your traffic. See [OpenRouter credit/budget limits](https://openrouter.ai/docs/api_reference/limits) and [key limits and reset options](https://openrouter.ai/docs/api/api-reference/api-keys/create-a-new-api-key). Do not rely on these local counters as a global cost guarantee.
+
+Client buckets use the socket address by default. Behind Cloud Run or another proxy, several visitors may share that bucket. Only set `GUEST_AI_TRUST_PROXY_HOPS` after verifying the actual trusted proxy chain and that forwarding headers cannot be spoofed through a shorter path. The resolver walks from the right, not the untrusted leftmost value. Leaving it at zero is conservative. See [Express proxy trust guidance](https://expressjs.com/en/guide/behind-proxies/). Cloud Run concurrency and maximum-instance settings affect scaling, but are not substitutes for a provider spending cap.
 
 ### Optional cloud sign-in
 
@@ -233,7 +271,7 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-Vitest checks task actions, import validation, configuration safeguards, and the real Express data router with isolated test identities/storage. Playwright retains the cloud regression suite with test-only storage/sign-in/AI responses. A separate guest suite opens the real Vite app at localhost:5173 against a real backend with all Firebase settings disabled. Guest AI responses are mocked for action/Markdown tests, and its missing-key error is checked against the real backend. The suites test empty state, task editing, reload persistence, two browser contexts for one account, another user's isolation, Markdown safety, navigation, sidebar, imports/exports, replacement confirmation, confirmed deletion, and mobile width. Guest tests also cover local saves across reload, local import/export, confirmed deletion with legacy-data preservation, and local Copilot chat. These tests do not prove live Google sign-in, Firestore access, or real OpenRouter output.
+Vitest checks task actions, import validation, configuration safeguards, and the real Express data router with isolated test identities/storage. Playwright retains the cloud regression suite with test-only storage/sign-in/AI responses. A separate guest suite opens the real Vite app at localhost:5173 against a real backend with all Firebase settings disabled. Guest AI responses are mocked for local action/Markdown tests, and its missing-key error is checked against the real backend. A separate production browser test uses the actual production server, no Firebase, explicit guest opt-in, and a test-only OpenRouter stream to verify create/edit/move/delete with approvals. The suites test empty state, task editing, reload persistence, two browser contexts for one account, another user's isolation, Markdown safety, navigation, sidebar, imports/exports, replacement confirmation, confirmed deletion, and mobile width. Guest tests also cover local saves across reload, local import/export, confirmed deletion with legacy-data preservation, and local Copilot chat. Production API tests additionally cover opt-in, blocked origins, quotas, concurrency, request/output bounds, timeouts, disconnects, server-side key handling, and protected cloud routes. These tests do not prove live Google sign-in, Firestore access, or real OpenRouter output.
 
 ### Optional real Firebase emulator integration test
 

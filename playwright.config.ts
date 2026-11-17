@@ -4,6 +4,11 @@ export default defineConfig({
   workers: 1,
   use: { baseURL: 'http://127.0.0.1:4173', trace: 'on-first-retry' },
   projects: [
+    {
+      name: 'production-ai',
+      testMatch: '**/production-ai.spec.ts',
+      use: { ...devices['Desktop Chrome'], baseURL: 'http://127.0.0.1:18190' },
+    },
     { name: 'chromium', testMatch: '**/taskflow.spec.ts', use: devices['Desktop Chrome'] },
     {
       name: 'guest',
@@ -12,6 +17,11 @@ export default defineConfig({
     },
   ],
   webServer: [
+    {
+      command: 'node tests/support/production-ai-server.mjs',
+      url: 'http://127.0.0.1:18190/healthz',
+      reuseExistingServer: false,
+    },
     {
       command: 'node tests/support/server.mjs',
       url: 'http://127.0.0.1:4173/api/config',

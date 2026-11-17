@@ -93,3 +93,21 @@ The production guest AI readiness check failed with HTTP 403: Guest AI is availa
 Per the publishing instruction to stop if any check fails, no commit or push was performed. No Cloud Build deployment was triggered or verified, and no Google Cloud service or production data was changed. The Google Cloud CLI was unavailable, so the external Cloud Build trigger and current Cloud Run deployment could not be inspected. The existing pipeline and service configuration were left alone.
 
 The final review removed the remaining floating mobile Assistant shortcut and its unused selectors to satisfy the explicit header-only requirement, and added a mobile assertion. Those edits and all earlier improvements remain local for review.
+
+## Production guest AI fix (not committed or deployed)
+
+The earlier release blocker is addressed in code by explicit `GUEST_AI_ENABLED=true` production opt-in and configured public origins, without Firebase or login. The shared provider stream handler is in server/agent.mjs. Cloud-account routes still use their existing authentication middleware. Guest snapshots and messages are validated and bounded; client overrides of model/provider options are rejected.
+
+New safeguards include per-client and per-instance fixed-window admissions, minute/hour/day instance budgets, bounded concurrency, a backend-controlled output token cap, a 128 KB raw body limit, an input JSON cap, a stream byte cap, timeout/disconnect cancellation, and no automatic backend retries. Counters are memory-only per instance, reset on restart, and are not global Cloud Run budgets. A dedicated OpenRouter key spending cap remains required for shared/provider-level budget control. README.md and .env.example document the exact variables and limitations.
+
+The production API suite uses the real route middleware and stream handler with a simulated provider. The production browser fixture runs the actual NODE_ENV=production server with no Firebase and a test-only provider module excluded from Docker builds. It exercises task tools and approvals without real API charges. No UI, localStorage workflow, or theme changes were made for this fix. No commit, push, deployment, or cloud setting change was performed.
+
+### Verification of the production guest AI fix
+
+- ESLint: passed with no errors or warnings.
+- TypeScript and production build: passed (existing bundle-size/dependency annotation warnings remain).
+- Unit/API suite: 45 tests passed across 6 files, including 18 production guest access/safeguard cases.
+- Full Playwright suite: 15 tests passed, including the actual production-mode server with no Firebase and simulated OpenRouter create/edit/move/delete responses plus decline/confirm approvals.
+- Formatting and Git whitespace checks: passed.
+
+Provider responses were simulated; live OpenRouter billing/credentials and the deployed Cloud Run service were not tested or changed. For a future deployment, set GUEST_AI_ENABLED=true and the actual HTTPS PUBLIC_APP_URL on taskflow, keep OPENROUTER_API_KEY in the backend Secret Manager binding, and configure a dedicated OpenRouter key credit/spending cap with the desired reset period. Proxy hop trust remains zero unless the deployment's forwarding chain is explicitly verified. Full limits and tuning variables are listed in README.md. No packages were added. No commit, push, or deployment was performed.
